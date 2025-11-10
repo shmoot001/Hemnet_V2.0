@@ -1,0 +1,78 @@
+version: '3.9'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api
+    depends_on:
+      - backend
+    environment:
+      - NODE_ENV=production
+    expose:
+      - "80"
+
+  backend:
+    build: ./backend
+    environment:
+      - PORT=4000
+      - DATABASE_URL=postgres://hemnet:hemnet@db:5432/hemnet
+      - PGSSLMODE=disable
+      - ENABLE_KEYCLOAK=true
+      - SESSION_SECRET=change-me
+      - KEYCLOAK_SERVER_URL=http://keycloak:8080/auth
+      - KEYCLOAK_REALM=hemnet
+      - KEYCLOAK_CLIENT_ID=hemnet-backend
+      - KEYCLOAK_SSL_REQUIRED=none
+    depends_on:
+      db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    ports:
+      - "4000:4000"
+
+  nginx:
+    build:
+      context: .
+      dockerfile: ./nginx/Dockerfile
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_started
+    ports:
+      - "3000:80"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=hemnet
+      - POSTGRES_PASSWORD=hemnet
+      - POSTGRES_DB=hemnet
+    ports:
+      - "5432:5432"
+    volumes:
+      - hemnet-db-data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hemnet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    command: start-dev --http-relative-path=/auth
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_DB=dev-mem
+      - KC_PROXY=edge
+      - KC_HTTP_RELATIVE_PATH=/auth
+    ports:
+      - "8080:8080"
+
+volumes:
+  hemnet-db-data:
