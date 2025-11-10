@@ -5,13 +5,13 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: http://backend:4000
+        VITE_API_URL: /api
     depends_on:
       - backend
-    ports:
-      - "3000:80"
     environment:
       - NODE_ENV=production
+    expose:
+      - "80"
 
   backend:
     build: ./backend
@@ -32,6 +32,18 @@ services:
         condition: service_started
     ports:
       - "4000:4000"
+
+  nginx:
+    build:
+      context: .
+      dockerfile: ./nginx/Dockerfile
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_started
+    ports:
+      - "3000:80"
 
   db:
     image: postgres:16-alpine
